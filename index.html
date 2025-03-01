@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FishSchool | Ty</title>
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sankofa+Display&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Quicksand", sans-serif !important;
+            touch-action: none;
+        }
+
+        body {
+            background: #1a1a1a;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .main-container {
+            width: 100%;
+            height: 100vh;
+            max-height: 96vh;
+            background: #2a2a2a;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            padding: 10px;
+            gap: 0px;
+            position: relative;
+        }
+
+        .game-container {
+            position: relative;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            touch-action: none;
+        }
+        
+        .overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #statsOverlay {
+            bottom: 10px;
+            left: 10px;
+        }
+        
+        .side-panel {
+            position: relative;
+            background: #222;
+            border-radius: 15px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            width: 250px;
+            transition: all 0.3s ease;
+            overflow: visible;
+        }
+
+        .side-panel.collapsed {
+            width: 0;
+            padding: 0;
+            margin: 0;
+            gap: 0px;
+        }
+
+        .side-panel.collapsed .control-group,
+        .side-panel.collapsed .entity-list,
+        .side-panel.collapsed .theme-selector {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .side-panel.collapsed .toggle-panel {
+            right: calc(100% + 40px);
+        }
+
+        .side-panel.collapsed > * {
+            visibility: hidden;
+        }
+        
+        .toggle-panel {
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            visibility: visible !important;
+        }
+
+        .side-panel.collapsed > *:not(.toggle-panel) {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-panel:hover {
+            background: #333;
+        }
+
+        .toggle-panel svg {
+            transition: transform 0.3s ease;
+        }
+
+        .side-panel.collapsed .toggle-panel svg {
+            transform: rotate(180deg);
+        }
+        
+        .toggle-panel.collapsed {
+            transform: translateY(-50%) rotate(180deg);
+            border-radius: 0 5px 5px 0;
+        }
+
+        .action-button {
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .action-button svg {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.2s ease;
+        }
+
+        .action-button:hover {
+            background: #333;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .action-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .side-panel.collapsed .control-group {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .action-button {
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            min-width: 44px;
+            min-height: 44px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button {
+            font-family: "Sankofa Display", sans-serif;
+            font-size: 1rem;
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #1a1a3a;
+            color: #00ffff;
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            background-color: #00ffff;
+            color: #1a1a3a;
+        }
+        
+        .entity-list {
+            background: #333;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 80px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .entity-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .entity-list::-webkit-scrollbar-track {
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+
+        .entity-list::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+
+        .entity-item {
+            background: #2a2a2a;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 14px;
+        }
+  
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 14px;
+            color: #fff;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        .theme-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+            padding: 10px;
+            background: #333;
+            border-radius: 8px;
+            height: auto;
+            width: 100%;
+        }
+
+        .theme-option {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 4px;
+            background: #2a2a2a;
+        }
+
+        .theme-option:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .theme-option.selected {
+            border-color: #fff;
+        }
+        
+        .theme-option .color-preview {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .side-panel {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+                width: auto;
+                max-width: 250px;
+                height: auto;
+                max-height: 80vh;
+                z-index: 100;
+            }
+
+            .side-panel.collapsed {
+                transform: translateX(calc(100% + 20px));
+            }
+
+            .toggle-panel {
+                left: -35px;
+                padding: 8px;
+            }
+
+            .action-buttons {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .action-button {
+                flex: 1;
+                min-width: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="game-container">
+            <canvas id="gameCanvas"></canvas>
+            <div id="statsOverlay" class="overlay">
+                Fish: <span id="populationCount">0</span> |
+                Avg Speed: <span id="avgSpeed">0</span>
+            </div>
+        </div>
+        <div class="side-panel">
+            <button class="toggle-panel">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z"/>
+                </svg>
+            </button>
+            <div class="control-group">
+                <div class="action-buttons">
+                    <button class="action-button" id="startStopBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                    </button>
+                    <button class="action-button" id="resetBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Z"/>
+                        </svg>
+                    </button>
+                </div>
+     
+            </div>
+            <div class="control-group">
+                <div id="entityList" class="entity-list"></div>
+            </div>
+            <div class="control-group">
+                <div id="themeSelector" class="theme-selector"></div>
+            </div>
+        </div>
+    </div>
+    <div id="tooltip"></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startStopBtn = document.getElementById('startStopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const populationCount = document.getElementById('populationCount');
+        const avgSpeedDisplay = document.getElementById('avgSpeed');
+        const entityList = document.getElementById('entityList');
+        const tooltip = document.getElementById('tooltip');
+
+        let fishSchool = [];
+        let isRunning = false;
+        let lastTime = 0;
+        let isMouseDown = false;
+        let lastSpawnTime = 0;
+        let lastReproductionTime = 0;
+        const REPRODUCTION_COOLDOWN = 4000;
+        const FIXED_TIME_STEP = 16;
+        const MAX_FISH = 300;
+        const MIN_REPRODUCTION_GROUP = 30;
+        const REPRODUCTION_CHANCE = 0.003;
+
+        const colorThemes = [
+            {name: 'Earth', primary: '#4B7BE5', secondary: '#345E8F', tertiary: '#89CFF0', background: '#0A1621'},
+            {name: 'Ultraviolet', primary: '#BD00FF', secondary: '#4C0BFF', tertiary: '#0095FF', background: '#0D0221'},
+            {name: 'Digital Ocean', primary: '#00FFD1', secondary: '#0083FF', tertiary: '#7C00FF', background: '#090E23'},
+            {name: 'Molten Core', primary: '#FF4D00', secondary: '#850000', tertiary: '#FF9300', background: '#1F0A07'},
+            {name: 'Arctic Pulse', primary: '#E2F3F7', secondary: '#4EBFDF', tertiary: '#0784B5', background: '#012841'},
+            {name: 'Dark Matter', primary: '#C874FF', secondary: '#FF4365', tertiary: '#7A04EB', background: '#080010'},
+            {name: 'Nuclear Dawn', primary: '#7FFF00', secondary: '#C4F700', tertiary: '#2EF700', background: '#0A1F00'},
+            {name: 'Quantum Flux', primary: '#00EEFF', secondary: '#00FF87', tertiary: '#00B8FF', background: '#001B29'}
+        ];
+
+        let currentTheme = colorThemes[0];
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        function lerp(start, end, t) {
+            return start + (end - start) * t;
+        }
+
+        class Fish {
+            constructor(x, y, template = null) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.targetVx = this.vx;
+                this.targetVy = this.vy;
+                this.maxSpeed = template ? template.maxSpeed * (0.9 + Math.random() * 0.2) : Math.random() * 1.5 + 2;
+                this.cruisingSpeed = this.maxSpeed * 0.6;
+                this.minSpeed = this.maxSpeed * 0.3;
+                this.angle = Math.atan2(this.vy, this.vx);
+                this.targetAngle = this.angle;
+                this.baseSize = template ? template.baseSize * (0.8 + Math.random() * 0.4) : Math.random() * 8 + 12;
+                this.size = this.baseSize * 0.6;
+                this.growthRate = 0.00025;
+                this.color = template ? 
+                    chroma.mix(template.color, chroma.mix(currentTheme.primary, currentTheme.secondary, Math.random()), 0.3).hex() :
+                    chroma.mix(currentTheme.primary, currentTheme.secondary, Math.random()).hex();
+                this.tailAngle = 0;
+                this.tailSpeed = Math.random() * 0.1 + 0.05;
+                
+                this.nearRadius = 40;
+                this.farRadius = 120;
+                this.visualRange = 180;
+                this.reproductionRange = 60;
+                
+                this.separationWeight = 1.8;
+                this.cohesionWeight = 1.0;
+                this.alignmentWeight = 1.2;
+                
+                this.maxTurnRate = 0.05;
+                this.acceleration = 0.2;
+                this.momentum = 0.8;
+                
+                this.state = 'juvenile';
+                this.stateTimer = 0;
+                this.energy = 1.0;
+                this.reproductionEnergy = 0;
+                this.lastPosition = { x, y };
+                this.velocity = { x: this.vx, y: this.vy };
+                this.desiredDirection = { x: this.vx, y: this.vy };
+                this.lastReproductionTime = Date.now() - Math.random() * 3000;
+                
+                this.age = Math.random() * 15;
+                this.lifespan = Math.random() * 120 + 240;
+                this.maturityAge = this.lifespan * 0.15;
+                this.oldAge = this.lifespan * 0.75;
+                this.ageSpeed = Math.random() * 0.3 + 0.7;
+                
+                this.minReproductionGroup = 3;
+                this.reproductionChance = 0.003;
+                this.reproductionCooldown = 4000;
+            }
+
+            canReproduce() {
+                const now = Date.now();
+                if (now - this.lastReproductionTime < this.reproductionCooldown) return false;
+                if (this.energy < 0.7) return false;
+                if (this.state !== 'adult') return false;
+                if (this.age < this.maturityAge) return false;
+                if (fishSchool.length >= MAX_FISH) return false;
+                return Math.random() < this.reproductionChance;
+            }
+
+            checkReproduction(fish) {
+                if (this.canReproduce()) {
+                    const nearbyFish = fish.filter(other => {
+                        if (other === this) return false;
+                        if (other.state !== 'adult') return false;
+                        if (other.age < other.maturityAge) return false;
+                        const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
+                        const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
+                        return Math.sqrt(dx * dx + dy * dy) < this.reproductionRange;
+                    });
+
+                    if (nearbyFish.length >= this.minReproductionGroup) {
+                        const newFish = new Fish(this.x, this.y, this);
+                        newFish.baseSize = this.baseSize * (0.85 + Math.random() * 0.25);
+                        newFish.size = newFish.baseSize * 0.4;
+                        newFish.velocity = { ...this.velocity };
+                        newFish.vx = this.vx;
+                        newFish.vy = this.vy;
+                        newFish.state = 'juvenile';
+                        newFish.age = 0;
+                        
+                        const variation = Math.random() * 0.2 - 0.1;
+                        newFish.lifespan = this.lifespan * (1 + variation);
+                        newFish.maturityAge = newFish.lifespan * 0.15;
+                        newFish.oldAge = newFish.lifespan * 0.75;
+                        
+                        fishSchool.push(newFish);
+                        this.lastReproductionTime = Date.now();
+                        this.energy *= 0.8;
+                        
+                        if (Math.random() < 0.4 && fishSchool.length < MAX_FISH - 1) {
+                            const twinFish = new Fish(
+                                this.x + (Math.random() - 0.5) * 20,
+                                this.y + (Math.random() - 0.5) * 20,
+                                newFish
+                            );
+                            twinFish.age = 0;
+                            fishSchool.push(twinFish);
+                        }
+                    }
+                }
+            }
+
+            updateLifecycle(dt) {
+                this.age += dt * this.ageSpeed;
+                
+                if (this.age < this.maturityAge) {
+                    this.state = 'juvenile';
+                    this.size = this.baseSize * Math.min(0.95, (this.age / this.maturityAge) * 0.7 + 0.3);
+                } else if (this.age < this.oldAge) {
+                    this.state = 'adult';
+                    this.size = this.baseSize;
+                    this.energy = Math.min(1, this.energy + 0.0002 * dt * 60);
+                } else {
+                    this.state = 'elderly';
+                    const ageRatio = (this.age - this.oldAge) / (this.lifespan - this.oldAge);
+                    this.size = this.baseSize * (1 - ageRatio * 0.2);
+                    this.maxSpeed = Math.max(this.maxSpeed * 0.998, this.minSpeed);
+                    this.energy = Math.max(0.5, 1 - ageRatio * 0.5);
+                }
+                
+                if (this.state === 'adult' && fishSchool.length < MAX_FISH * 0.5) {
+                    this.reproductionChance = 0.006;
+                    this.minReproductionGroup = 2;
+                    this.reproductionCooldown = 3000;
+                } else if (this.state === 'adult' && fishSchool.length < MAX_FISH * 0.8) {
+                    this.reproductionChance = 0.003;
+                    this.minReproductionGroup = 3;
+                    this.reproductionCooldown = 4000;
+                } else {
+                    this.reproductionChance = 0.001;
+                    this.minReproductionGroup = 5;
+                    this.reproductionCooldown = 6000;
+                }
+            }
+
+            isDead() {
+                return this.age >= this.lifespan;
+            }
+
+            normalize(vector) {
+                const length = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+                return length > 0 ? { x: vector.x / length, y: vector.y / length } : { x: 0, y: 0 };
+            }
+
+            getWrappedDiff(diff, size) {
+                if (Math.abs(diff) > size / 2) {
+                    return diff > 0 ? diff - size : diff + size;
+                }
+                return diff;
+            }
+
+            limitMagnitude(vector, max) {
+                const lengthSq = vector.x * vector.x + vector.y * vector.y;
+                if (lengthSq > max * max) {
+                    const ratio = max / Math.sqrt(lengthSq);
+                    return { x: vector.x * ratio, y: vector.y * ratio };
+                }
+                return vector;
+            }
+
+            calculateNeighborInfluence(fish) {
+                const neighbors = {
+                    near: [],
+                    far: [],
+                    visible: []
+                };
+                
+                fish.forEach(other => {
+                    if (other === this) return;
+                    
+                    const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
+                    const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < this.nearRadius) {
+                        neighbors.near.push({ fish: other, dx, dy, distance });
+                    } else if (distance < this.farRadius) {
+                        neighbors.far.push({ fish: other, dx, dy, distance });
+                    } else if (distance < this.visualRange) {
+                        neighbors.visible.push({ fish: other, dx, dy, distance });
+                    }
+                });
+                
+                return neighbors;
+            }
+
+            calculateSeparation(neighbors) {
+                let separation = { x: 0, y: 0 };
+                
+                neighbors.near.forEach(({ dx, dy, distance }) => {
+                    const weight = (this.nearRadius - distance) / this.nearRadius;
+                    separation.x -= dx * weight;
+                    separation.y -= dy * weight;
+                });
+                
+                return this.normalize(separation);
+            }
+
+            calculateCohesion(neighbors) {
+                let centerOfMass = { x: 0, y: 0 };
+                const allNeighbors = [...neighbors.far, ...neighbors.visible];
+                
+                if (allNeighbors.length === 0) return { x: 0, y: 0 };
+                
+                allNeighbors.forEach(({ fish }) => {
+                    centerOfMass.x += this.getWrappedDiff(fish.x - this.x, canvas.width);
+                    centerOfMass.y += this.getWrappedDiff(fish.y - this.y, canvas.height);
+                });
+                
+                centerOfMass.x /= allNeighbors.length;
+                centerOfMass.y /= allNeighbors.length;
+                
+                return this.normalize(centerOfMass);
+            }
+
+            calculateAlignment(neighbors) {
+                let averageDirection = { x: 0, y: 0 };
+                const allNeighbors = [...neighbors.far, ...neighbors.visible];
+                
+                if (allNeighbors.length === 0) return { x: 0, y: 0 };
+                
+                allNeighbors.forEach(({ fish }) => {
+                    averageDirection.x += fish.velocity.x;
+                    averageDirection.y += fish.velocity.y;
+                });
+                
+                return this.normalize(averageDirection);
+            }
+
+            updateDesiredDirection(neighbors) {
+                const separation = this.calculateSeparation(neighbors);
+                const cohesion = this.calculateCohesion(neighbors);
+                const alignment = this.calculateAlignment(neighbors);
+                
+                this.desiredDirection = {
+                    x: separation.x * this.separationWeight +
+                    cohesion.x * this.cohesionWeight +
+                    alignment.x * this.alignmentWeight,
+                    y: separation.y * this.separationWeight +
+                    cohesion.y * this.cohesionWeight +
+                    alignment.y * this.alignmentWeight
+                };
+                
+                this.desiredDirection = this.normalize(this.desiredDirection);
+            }
+
+            avoidBoundaries() {
+                const margin = 100;
+                let avoidance = { x: 0, y: 0 };
+                
+                if (this.x < margin) {
+                    avoidance.x = (margin - this.x) / margin;
+                } else if (this.x > canvas.width - margin) {
+                    avoidance.x = (canvas.width - margin - this.x) / margin;
+                }
+                
+                if (this.y < margin) {
+                    avoidance.y = (margin - this.y) / margin;
+                } else if (this.y > canvas.height - margin) {
+                    avoidance.y = (canvas.height - margin - this.y) / margin;
+                }
+                
+                return avoidance;
+            }
+
+            update(fish, dt) {
+                this.stateTimer += dt;
+                this.updateLifecycle(dt);
+                
+                if (this.isDead()) return;
+                
+                const neighbors = this.calculateNeighborInfluence(fish);
+                this.checkReproduction(fish);
+                
+                this.updateDesiredDirection(neighbors);
+                const boundaryAvoidance = this.avoidBoundaries();
+                
+                const targetVelocity = {
+                    x: this.desiredDirection.x + boundaryAvoidance.x,
+                    y: this.desiredDirection.y + boundaryAvoidance.y
+                };
+                
+                const normalizedTarget = this.normalize(targetVelocity);
+                
+                const currentMaxSpeed = this.state === 'juvenile' ? this.maxSpeed * 0.85 :
+                                    this.state === 'elderly' ? this.maxSpeed * 0.7 : 
+                                    this.maxSpeed;
+                
+                this.velocity = {
+                    x: this.velocity.x * this.momentum + normalizedTarget.x * this.acceleration * dt * 60,
+                    y: this.velocity.y * this.momentum + normalizedTarget.y * this.acceleration * dt * 60
+                };
+                
+                this.velocity = this.limitMagnitude(this.velocity, currentMaxSpeed);
+                
+                const minSpeedSq = this.minSpeed * this.minSpeed;
+                const speedSq = this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y;
+                
+                if (speedSq < minSpeedSq) {
+                    const ratio = this.minSpeed / Math.sqrt(speedSq);
+                    this.velocity.x *= ratio;
+                    this.velocity.y *= ratio;
+                }
+                
+                this.x += this.velocity.x * dt * 50;
+                this.y += this.velocity.y * dt * 50;
+                
+                this.x = ((this.x % canvas.width) + canvas.width) % canvas.width;
+                this.y = ((this.y % canvas.height) + canvas.height) % canvas.height;
+                
+                this.targetAngle = Math.atan2(this.velocity.y, this.velocity.x);
+                let angleDiff = this.targetAngle - this.angle;
+                
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                
+                this.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), this.maxTurnRate);
+                
+                const speed = Math.sqrt(speedSq);
+                this.tailAngle = Math.sin(this.stateTimer * this.tailSpeed * (speed / this.maxSpeed) * 10) * 0.3;
+                
+                this.vx = this.velocity.x;
+                this.vy = this.velocity.y;
+                
+                this.energy = Math.min(1, this.energy + 0.0001);
+            }
+
+            draw() {
+                offscreenCtx.save();
+                offscreenCtx.translate(this.x, this.y);
+                offscreenCtx.rotate(this.angle);
+
+                const baseColor = chroma(this.color);
+                const energyAdjustedColor = this.state === 'juvenile' 
+                    ? baseColor.alpha(0.75).brighten(0.5).hex()
+                    : this.state === 'adult'
+                    ? baseColor.alpha(0.6 + this.energy * 0.4).hex()
+                    : baseColor.alpha(0.5 + this.energy * 0.5).darken((this.age - this.oldAge) / (this.lifespan - this.oldAge) * 2).hex();
+
+                const gradient = offscreenCtx.createLinearGradient(-this.size * 0.7, 0, this.size * 1.2, 0);
+                gradient.addColorStop(0, baseColor.darken(1).hex());
+                gradient.addColorStop(0.3, energyAdjustedColor);
+                gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+                gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+                offscreenCtx.fillStyle = gradient;
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(this.size * 1.1, 0);
+                offscreenCtx.bezierCurveTo(
+                    this.size * 0.9, -this.size * 0.25,
+                    this.size * 0.6, -this.size * 0.5,
+                    this.size * 0.2, -this.size * 0.55
+                );
+                offscreenCtx.bezierCurveTo(
+                    -this.size * 0.3, -this.size * 0.6,
+                    -this.size * 0.7, -this.size * 0.45,
+                    -this.size * 1.1, -this.size * 0.25
+                );
+                offscreenCtx.bezierCurveTo(
+                    -this.size * 1.3, -this.size * 0.15,
+                    -this.size * 1.4, 0,
+                    -this.size * 1.3, this.size * 0.15
+                );
+                offscreenCtx.bezierCurveTo(
+                    -this.size * 1.1, this.size * 0.25,
+                    -this.size * 0.7, this.size * 0.45,
+                    -this.size * 0.3, this.size * 0.6
+                );
+                offscreenCtx.bezierCurveTo(
+                    this.size * 0.6, this.size * 0.5,
+                    this.size * 0.9, this.size * 0.25,
+                    this.size * 1.1, 0
+                );
+                offscreenCtx.fill();
+
+                offscreenCtx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+                offscreenCtx.lineWidth = this.size * 0.05;
+                offscreenCtx.stroke();
+
+                const tailWagging = Math.sin(this.stateTimer * this.tailSpeed * (Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y) / this.maxSpeed) * 12) * 0.35;
+                offscreenCtx.fillStyle = gradient;
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(-this.size * 1.1, -this.size * 0.25);
+                offscreenCtx.bezierCurveTo(
+                    -this.size * 1.5, -this.size * 0.5 + tailWagging * this.size * 0.4,
+                    -this.size * 1.7, -this.size * 0.2 + tailWagging * this.size * 0.6,
+                    -this.size * 1.6, 0 + tailWagging * this.size * 0.3
+                );
+                offscreenCtx.bezierCurveTo(
+                    -this.size * 1.7, this.size * 0.2 - tailWagging * this.size * 0.6,
+                    -this.size * 1.5, this.size * 0.5 - tailWagging * this.size * 0.4,
+                    -this.size * 1.1, this.size * 0.25
+                );
+                offscreenCtx.fill();
+
+                offscreenCtx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(this.size * 0.4, -this.size * 0.55);
+                offscreenCtx.quadraticCurveTo(
+                    this.size * 0.2, -this.size * 0.9,
+                    -this.size * 0.1, -this.size * 0.55
+                );
+                offscreenCtx.fill();
+
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(this.size * 0.3, this.size * 0.55);
+                offscreenCtx.quadraticCurveTo(
+                    this.size * 0.1, this.size * 0.85,
+                    -this.size * 0.1, this.size * 0.55
+                );
+                offscreenCtx.fill();
+
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(-this.size * 0.2, this.size * 0.45);
+                offscreenCtx.quadraticCurveTo(
+                    -this.size * 0.4, this.size * 0.75,
+                    -this.size * 0.6, this.size * 0.45
+                );
+                offscreenCtx.fill();
+
+                offscreenCtx.fillStyle = "#ffffff";
+                offscreenCtx.beginPath();
+                offscreenCtx.arc(this.size * 0.85, -this.size * 0.15, this.size * 0.12, 0, Math.PI * 2);
+                offscreenCtx.fill();
+
+                offscreenCtx.fillStyle = "#000000";
+                offscreenCtx.beginPath();
+                offscreenCtx.arc(this.size * 0.88, -this.size * 0.15, this.size * 0.06, 0, Math.PI * 2);
+                offscreenCtx.fill();
+
+                offscreenCtx.fillStyle = "#ffffff";
+                offscreenCtx.beginPath();
+                offscreenCtx.arc(this.size * 0.83, -this.size * 0.18, this.size * 0.03, 0, Math.PI * 2);
+                offscreenCtx.fill();
+
+                offscreenCtx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
+                offscreenCtx.lineWidth = this.size * 0.03;
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(this.size * 0.8, this.size * 0.1);
+                offscreenCtx.quadraticCurveTo(
+                    this.size * 0.4, this.size * 0.3,
+                    0, this.size * 0.2
+                );
+                offscreenCtx.stroke();
+
+                offscreenCtx.beginPath();
+                offscreenCtx.moveTo(this.size * 0.6, -this.size * 0.1);
+                offscreenCtx.quadraticCurveTo(
+                    this.size * 0.2, -this.size * 0.25,
+                    -this.size * 0.2, -this.size * 0.15
+                );
+                offscreenCtx.stroke();
+
+                const speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+                if (speed > this.maxSpeed * 0.5) {
+                    offscreenCtx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+                    offscreenCtx.lineWidth = this.size * 0.02;
+                    for (let i = 0; i < 4; i++) {
+                        offscreenCtx.beginPath();
+                        offscreenCtx.arc(
+                            -this.size * (0.3 + i * 0.2),
+                            (Math.random() - 0.5) * this.size * 0.4,
+                            this.size * (0.03 + Math.random() * 0.04),
+                            0, Math.PI * 2
+                        );
+                        offscreenCtx.stroke();
+                    }
+                }
+
+                offscreenCtx.restore();
+            }
+        }
+
+        function getMousePosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (event.clientX - rect.left) * scaleX,
+                y: (event.clientY - rect.top) * scaleY
+            };
+        }
+
+        function createFishGroup(x, y) {
+            const now = Date.now();
+            if (now - lastSpawnTime < 100 || fishSchool.length >= MAX_FISH) return;
+            lastSpawnTime = now;
+
+            const groupSize = Math.floor(Math.random() * 3) + 4;
+            const spread = 40;
+            const searchRadius = 150;
+            const nearbyFish = fishSchool.filter(fish => {
+                const dx = Math.min(Math.abs(fish.x - x), canvas.width - Math.abs(fish.x - x));
+                const dy = Math.min(Math.abs(fish.y - y), canvas.height - Math.abs(fish.y - y));
+                return Math.sqrt(dx * dx + dy * dy) < searchRadius;
+            }).slice(0, 3);
+
+            for (let i = 0; i < groupSize; i++) {
+                const angle = (Math.PI * 2 * i) / groupSize + Math.random() * 0.5;
+                const distance = Math.random() * spread;
+                const newX = x + Math.cos(angle) * distance;
+                const newY = y + Math.sin(angle) * distance;
+
+                if (newX < 0 || newX > canvas.width || newY < 0 || newY > canvas.height) continue;
+
+                const template = nearbyFish.length > 0 ? nearbyFish[Math.floor(Math.random() * nearbyFish.length)] : null;
+                const newFish = new Fish(newX, newY, template);
+                
+                if (Math.random() < 0.3) {
+                    newFish.age = newFish.maturityAge * (0.8 + Math.random() * 0.4);
+                    newFish.state = 'adult';
+                    newFish.size = newFish.baseSize;
+                }
+
+                fishSchool.push(newFish);
+            }
+        }
+        
+        function showTooltip(x, y, fish) {
+            const speed = Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y);
+            const agePercentage = (fish.age / fish.lifespan * 100).toFixed(0);
+            const timeLeft = fish.state === 'elderly' ? 
+                `<br>Time left: ~${((fish.lifespan - fish.age) / fish.ageSpeed).toFixed(0)}s` : '';
+            const reproStatus = fish.state === 'adult' ? 
+                `<br>Can reproduce: ${Date.now() - fish.lastReproductionTime >= fish.reproductionCooldown ? 'Yes' : 'No'}` : '';
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = x + 10 + 'px';
+            tooltip.style.top = y + 10 + 'px';
+            tooltip.innerHTML = `
+                <strong>Fish (${fish.state})</strong><br>
+                Speed: ${speed.toFixed(1)} / ${fish.maxSpeed.toFixed(1)}<br>
+                Energy: ${(fish.energy * 100).toFixed(0)}%<br>
+                Size: ${fish.size.toFixed(1)} / ${fish.baseSize.toFixed(1)}<br>
+                Age: ${agePercentage}% (${(fish.age / fish.ageSpeed).toFixed(0)}s)
+                ${timeLeft}${reproStatus}
+            `;
+        }
+
+        function sortFishByDepth() {
+            fishSchool.sort((a, b) => a.size - b.size);
+        }
+
+        function findNearbyFish(x, y, radius) {
+            const nearby = [];
+            for (const fish of fishSchool) {
+                const dx = Math.min(Math.abs(fish.x - x), canvas.width - Math.abs(fish.x - x));
+                const dy = Math.min(Math.abs(fish.y - y), canvas.height - Math.abs(fish.y - y));
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < radius) {
+                    nearby.push({ fish, distance });
+                }
+            }
+            return nearby.sort((a, b) => a.distance - b.distance).map(n => n.fish);
+        }
+
+        function updateSchool(dt) {
+            const deadFish = [];
+            let newFishAdded = false;
+            
+            fishSchool.forEach(fish => {
+                fish.update(fishSchool, dt);
+                if (fish.isDead()) {
+                    deadFish.push(fish);
+                }
+            });
+            
+            if (deadFish.length > 0) {
+                fishSchool = fishSchool.filter(fish => !deadFish.includes(fish));
+            }
+            
+            const population = fishSchool.length;
+            const targetPopulation = MAX_FISH * 0.75;
+            
+            if (population < MAX_FISH * 0.4 && Math.random() < 0.03) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                createFishGroup(x, y);
+                newFishAdded = true;
+            }
+            
+            if (newFishAdded) {
+                sortFishByDepth();
+            }
+        }
+
+        function drawScene() {
+            offscreenCtx.fillStyle = chroma(currentTheme.background).darken(0.5).hex();
+            offscreenCtx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            sortFishByDepth();
+            fishSchool.forEach(fish => fish.draw());
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(offscreenCanvas, 0, 0);
+        }
+        
+        function updateUI() {
+            const juvenileFish = fishSchool.filter(fish => fish.state === 'juvenile').length;
+            const adultFish = fishSchool.filter(fish => fish.state === 'adult').length;
+            const elderlyFish = fishSchool.filter(fish => fish.state === 'elderly').length;
+            
+            populationCount.textContent = fishSchool.length;
+            const avgSpeed = fishSchool.reduce((sum, fish) => 
+                sum + Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y), 0) / Math.max(1, fishSchool.length);
+            avgSpeedDisplay.textContent = avgSpeed.toFixed(2);
+
+            document.getElementById('statsOverlay').innerHTML = `
+                Fish: <span id="populationCount">${fishSchool.length}</span> | 
+                Avg Speed: <span id="avgSpeed">${avgSpeed.toFixed(2)}</span> |
+                <span style="color: #90EE90">Juvenile: ${juvenileFish}</span> | 
+                <span style="color: #4682B4">Adult: ${adultFish}</span> | 
+                <span style="color: #A0522D">Elderly: ${elderlyFish}</span>
+            `;
+
+            const sampleFish = fishSchool.slice(0, 5);
+            entityList.innerHTML = sampleFish.map(fish => {
+                const agePercentage = (fish.age / fish.lifespan * 100).toFixed(0);
+                let stateColor = fish.state === 'juvenile' ? '#90EE90' : 
+                                fish.state === 'adult' ? '#4682B4' : '#A0522D';
+                
+                let remainingLife = '';
+                if (fish.state === 'elderly') {
+                    const secondsLeft = ((fish.lifespan - fish.age) / fish.ageSpeed).toFixed(0);
+                    remainingLife = `<br>Remaining: ~${secondsLeft}s`;
+                }
+                
+                return `
+                    <div class="entity-item" style="border-left: 3px solid ${fish.color}">
+                        <strong>Fish (${fish.state})</strong><br>
+                        Speed: ${Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y).toFixed(1)}<br>
+                        Age: <span style="color: ${stateColor}">${agePercentage}%</span>${remainingLife}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            
+            dt = Math.min(dt, 0.1);
+            
+            while (dt > FIXED_TIME_STEP / 1000) {
+                updateSchool(FIXED_TIME_STEP / 1000);
+                dt -= FIXED_TIME_STEP / 1000;
+            }
+            if (dt > 0) updateSchool(dt);
+
+            drawScene();
+            updateUI();
+
+            if (isRunning) requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+            drawScene();
+        }
+
+        function initSchool() {
+            fishSchool = [];
+            const spacing = 40;
+            const margin = 100;
+            const gridSize = Math.floor(Math.sqrt(100));
+
+            for (let i = 0; i < 100; i++) {
+                const col = i % gridSize;
+                const row = Math.floor(i / gridSize);
+                
+                const baseX = margin + (canvas.width - 2 * margin) * (col / gridSize);
+                const baseY = margin + (canvas.height - 2 * margin) * (row / gridSize);
+                
+                const x = baseX + (Math.random() - 0.5) * spacing;
+                const y = baseY + (Math.random() - 0.5) * spacing;
+                
+                const fish = new Fish(x, y);
+                if (i > 0) {
+                    const template = fishSchool[Math.floor(Math.random() * fishSchool.length)];
+                    fish.color = chroma.mix(template.color, currentTheme.primary, 0.3).hex();
+                    fish.maxSpeed = template.maxSpeed * (0.9 + Math.random() * 0.2);
+                    fish.velocity = {
+                        x: template.velocity.x * (0.8 + Math.random() * 0.4),
+                        y: template.velocity.y * (0.8 + Math.random() * 0.4)
+                    };
+                    fish.vx = fish.velocity.x;
+                    fish.vy = fish.velocity.y;
+                }
+                fishSchool.push(fish);
+            }
+        }
+
+        function saveGameState() {
+            const gameState = {
+                fishSchool: fishSchool.map(fish => ({
+                    x: fish.x,
+                    y: fish.y,
+                    velocity: fish.velocity,
+                    baseSize: fish.baseSize,
+                    size: fish.size,
+                    color: fish.color,
+                    maxSpeed: fish.maxSpeed,
+                    energy: fish.energy,
+                    state: fish.state,
+                    lastReproductionTime: fish.lastReproductionTime,
+                    age: fish.age,
+                    lifespan: fish.lifespan,
+                    maturityAge: fish.maturityAge,
+                    oldAge: fish.oldAge,
+                    ageSpeed: fish.ageSpeed
+                })),
+                isRunning,
+                currentTheme
+            };
+            localStorage.setItem('fishSchoolState', JSON.stringify(gameState));
+        }
+
+        function loadGameState() {
+            const savedState = localStorage.getItem('fishSchoolState');
+            if (!savedState) return false;
+            
+            try {
+                const gameState = JSON.parse(savedState);
+                fishSchool = gameState.fishSchool.map(data => {
+                    const fish = new Fish(data.x, data.y);
+                    Object.assign(fish, data);
+                    return fish;
+                });
+                
+                currentTheme = gameState.currentTheme;
+                isRunning = gameState.isRunning;
+                
+                sortFishByDepth();
+                updateUI();
+                drawScene();
+                
+                if (isRunning) {
+                    requestAnimationFrame(gameLoop);
+                }
+                return true;
+            } catch (e) {
+                console.error("Error loading game state:", e);
+                return false;
+            }
+        }
+        
+        canvas.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            isMouseDown = true;
+            const pos = getMousePosition(event);
+            createFishGroup(pos.x, pos.y);
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            event.preventDefault();
+            const pos = getMousePosition(event);
+            
+            if (isMouseDown) {
+                createFishGroup(pos.x, pos.y);
+            }
+
+            const nearby = findNearbyFish(pos.x, pos.y, 50);
+            if (nearby.length > 0) {
+                showTooltip(event.clientX, event.clientY, nearby[0]);
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => isMouseDown = false);
+        
+        canvas.addEventListener('mouseleave', () => {
+            isMouseDown = false;
+            tooltip.style.display = 'none';
+        });
+
+        startStopBtn.addEventListener('click', () => {
+            isRunning = !isRunning;
+            startStopBtn.querySelector('svg').innerHTML = isRunning 
+                ? '<path d="M520-200h80v-560h-80v560Zm-160 0h80v-560h-80v560Z"/>'
+                : '<path d="M320-200v-560l440 280-440 280Z"/>';
+            startStopBtn.style.backgroundColor = isRunning ? '#333' : '#2a2a2a';
+            
+            if (isRunning) {
+                lastTime = 0;
+                requestAnimationFrame(gameLoop);
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            resetBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => resetBtn.style.transform = 'scale(1)', 100);
+            localStorage.removeItem('fishSchoolState');
+            initSchool();
+        });
+
+        window.addEventListener('beforeunload', saveGameState);
+        
+        window.addEventListener('load', () => {
+            if (!loadGameState()) initSchool();
+        });
+
+        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeCanvas));
+        resizeObserver.observe(canvas.parentElement);
+
+        setInterval(saveGameState, 5000);
+
+        function initThemeSelector() {
+            const themeSelector = document.getElementById('themeSelector');
+            themeSelector.innerHTML = '';
+            
+            colorThemes.forEach((theme, index) => {
+                const themeOption = document.createElement('div');
+                themeOption.className = 'theme-option';
+                themeOption.style.backgroundColor = theme.background;
+                
+                const previewContainer = document.createElement('div');
+                previewContainer.style.display = 'flex';
+                previewContainer.style.gap = '2px';
+                previewContainer.style.flexWrap = 'nowrap';
+                
+                [theme.primary, theme.secondary, theme.tertiary].forEach(color => {
+                    const preview = document.createElement('div');
+                    preview.className = 'color-preview';
+                    preview.style.backgroundColor = color;
+                    previewContainer.appendChild(preview);
+                });
+                
+                themeOption.appendChild(previewContainer);
+                if (theme === currentTheme) themeOption.classList.add('selected');
+                themeOption.addEventListener('click', () => selectTheme(index));
+                themeSelector.appendChild(themeOption);
+            });
+        }
+
+        function selectTheme(index) {
+            currentTheme = colorThemes[index];
+            updateSelectedTheme();
+            updateGameColors();
+        }
+
+        function updateSelectedTheme() {
+            const themeOptions = document.querySelectorAll('.theme-option');
+            themeOptions.forEach((option, index) => {
+                option.classList.toggle('selected', colorThemes[index] === currentTheme);
+            });
+        }
+
+        function updateGameColors() {
+            document.body.style.backgroundColor = currentTheme.background;
+            document.body.style.color = currentTheme.primary;
+            fishSchool.forEach(fish => {
+                const groupColor = fishSchool.find(f => 
+                    Math.abs(f.x - fish.x) < 50 && 
+                    Math.abs(f.y - fish.y) < 50 && 
+                    f !== fish
+                )?.color;
+                
+                fish.color = groupColor ? 
+                    chroma.mix(groupColor, chroma.mix(currentTheme.primary, currentTheme.secondary, Math.random()), 0.3).hex() :
+                    chroma.mix(currentTheme.primary, currentTheme.secondary, Math.random()).hex();
+            });
+            drawScene();
+        }
+
+        const togglePanel = document.querySelector('.toggle-panel');
+        
+        togglePanel.addEventListener('click', () => {
+            const sidePanel = document.querySelector('.side-panel');
+            sidePanel.classList.toggle('collapsed');
+            const svg = togglePanel.querySelector('svg');
+            svg.style.transform = sidePanel.classList.contains('collapsed') ? 'rotate(180deg)' : 'rotate(0deg)';
+            updatePanelVisibility();
+        });
+
+        function updatePanelVisibility() {
+            const sidePanel = document.querySelector('.side-panel');
+            const isCollapsed = sidePanel.classList.contains('collapsed');
+            const controls = document.querySelectorAll('.control-group, .entity-list, .theme-selector');
+            const isMobile = window.innerWidth <= 768;
+            
+            requestAnimationFrame(() => {
+                sidePanel.style.width = isCollapsed ? '0' : '250px';
+                sidePanel.style.padding = isCollapsed ? '0' : '10px';
+                
+                controls.forEach(element => {
+                    element.style.display = isCollapsed ? 'none' : 
+                        (element.classList.contains('theme-selector') ? 'grid' : 'flex');
+                    element.style.opacity = isCollapsed ? '0' : '1';
+                    element.style.pointerEvents = isCollapsed ? 'none' : 'all';
+                });
+                
+                if (isMobile) {
+                    Object.assign(sidePanel.style, {
+                        position: 'fixed',
+                        right: '10px',
+                        bottom: '10px',
+                        top: 'auto'
+                    });
+                } else {
+                    Object.assign(sidePanel.style, {
+                        position: 'relative',
+                        right: '0',
+                        top: '0',
+                        bottom: '0'
+                    });
+                }
+                
+                requestAnimationFrame(resizeCanvas);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initThemeSelector();
+            resizeCanvas();
+            if (!loadGameState()) {
+                initSchool();
+                isRunning = true;
+                requestAnimationFrame(gameLoop);
+            }
+        });
+    </script>
+</body>
+</html>
