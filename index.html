@@ -469,7 +469,15 @@
                 this.minSpeed = this.maxSpeed * 0.3;
                 this.angle = Math.atan2(this.vy, this.vx);
                 this.targetAngle = this.angle;
-                this.baseSize = template ? template.baseSize * (0.8 + Math.random() * 0.4) : Math.random() * 8 + 12;
+                
+                const minBaseSize = 8;
+                if (template) {
+                    const sizeVariation = 0.9 + Math.random() * 0.2;
+                    this.baseSize = Math.max(minBaseSize, template.baseSize * sizeVariation);
+                } else {
+                    this.baseSize = Math.random() * 8 + 12;
+                }
+                
                 this.size = this.baseSize * 0.6;
                 this.growthRate = 0.00025;
                 this.color = template ? 
@@ -523,46 +531,50 @@
 
             checkReproduction(fish) {
                 if (this.canReproduce()) {
-                    const nearbyFish = fish.filter(other => {
-                        if (other === this) return false;
-                        if (other.state !== 'adult') return false;
-                        if (other.age < other.maturityAge) return false;
-                        const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
-                        const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
-                        return Math.sqrt(dx * dx + dy * dy) < this.reproductionRange;
-                    });
+                const nearbyFish = fish.filter(other => {
+                    if (other === this) return false;
+                    if (other.state !== 'adult') return false;
+                    if (other.age < other.maturityAge) return false;
+                    const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
+                    const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
+                    return Math.sqrt(dx * dx + dy * dy) < this.reproductionRange;
+                });
 
-                    if (nearbyFish.length >= this.minReproductionGroup) {
-                        const newFish = new Fish(this.x, this.y, this);
-                        newFish.baseSize = this.baseSize * (0.85 + Math.random() * 0.25);
-                        newFish.size = newFish.baseSize * 0.4;
-                        newFish.velocity = { ...this.velocity };
-                        newFish.vx = this.vx;
-                        newFish.vy = this.vy;
-                        newFish.state = 'juvenile';
-                        newFish.age = 0;
-                        
-                        const variation = Math.random() * 0.2 - 0.1;
-                        newFish.lifespan = this.lifespan * (1 + variation);
-                        newFish.maturityAge = newFish.lifespan * 0.15;
-                        newFish.oldAge = newFish.lifespan * 0.75;
-                        
-                        fishSchool.push(newFish);
-                        this.lastReproductionTime = Date.now();
-                        this.energy *= 0.8;
-                        
-                        if (Math.random() < 0.4 && fishSchool.length < MAX_FISH - 1) {
-                            const twinFish = new Fish(
-                                this.x + (Math.random() - 0.5) * 20,
-                                this.y + (Math.random() - 0.5) * 20,
-                                newFish
-                            );
-                            twinFish.age = 0;
-                            fishSchool.push(twinFish);
-                        }
+                if (nearbyFish.length >= this.minReproductionGroup) {
+                    const newFish = new Fish(this.x, this.y, this);
+                    
+                    const sizeVariation = 0.9 + Math.random() * 0.2;
+                    const minBaseSize = 8;  
+                    newFish.baseSize = Math.max(minBaseSize, this.baseSize * sizeVariation);
+                    
+                    newFish.size = newFish.baseSize * 0.4;
+                    newFish.velocity = { ...this.velocity };
+                    newFish.vx = this.vx;
+                    newFish.vy = this.vy;
+                    newFish.state = 'juvenile';
+                    newFish.age = 0;
+                    
+                    const variation = Math.random() * 0.2 - 0.1;
+                    newFish.lifespan = this.lifespan * (1 + variation);
+                    newFish.maturityAge = newFish.lifespan * 0.15;
+                    newFish.oldAge = newFish.lifespan * 0.75;
+                    
+                    fishSchool.push(newFish);
+                    this.lastReproductionTime = Date.now();
+                    this.energy *= 0.8;
+                    
+                    if (Math.random() < 0.4 && fishSchool.length < MAX_FISH - 1) {
+                        const twinFish = new Fish(
+                            this.x + (Math.random() - 0.5) * 20,
+                            this.y + (Math.random() - 0.5) * 20,
+                            newFish
+                        );
+                        twinFish.age = 0;
+                        fishSchool.push(twinFish);
                     }
                 }
             }
+        }
 
             updateLifecycle(dt) {
                 this.age += dt * this.ageSpeed;
