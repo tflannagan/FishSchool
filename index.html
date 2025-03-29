@@ -379,10 +379,7 @@
     <div class="main-container">
         <div class="game-container">
             <canvas id="gameCanvas"></canvas>
-            <div id="statsOverlay" class="overlay">
-                Fish: <span id="populationCount">0</span> |
-                Avg Speed: <span id="avgSpeed">0</span>
-            </div>
+          
         </div>
         <div class="side-panel">
             <button class="toggle-panel">
@@ -405,7 +402,7 @@
                 </div>
      
             </div>
-            
+          
             <div class="control-group">
                 <div id="themeSelector" class="theme-selector"></div>
             </div>
@@ -2155,7 +2152,6 @@
         }
         
         
-
         function gameLoop(timestamp) {
             if (!lastTime) lastTime = timestamp;
             let dt = (timestamp - lastTime) / 1000;
@@ -2170,7 +2166,7 @@
             if (dt > 0) updateSchool(dt);
 
             drawScene();
-        
+           
 
             if (isRunning) requestAnimationFrame(gameLoop);
         }
@@ -2257,7 +2253,7 @@
                 isRunning = gameState.isRunning;
                 
                 sortFishByDepth();
-             
+          
                 drawScene();
                 
                 if (isRunning) {
