@@ -405,9 +405,7 @@
                 </div>
      
             </div>
-            <div class="control-group">
-                <div id="entityList" class="entity-list"></div>
-            </div>
+            
             <div class="control-group">
                 <div id="themeSelector" class="theme-selector"></div>
             </div>
@@ -2156,45 +2154,7 @@
             ctx.drawImage(offscreenCanvas, 0, 0);
         }
         
-        function updateUI() {
-            const juvenileFish = fishSchool.filter(fish => fish.state === 'juvenile').length;
-            const adultFish = fishSchool.filter(fish => fish.state === 'adult').length;
-            const elderlyFish = fishSchool.filter(fish => fish.state === 'elderly').length;
-            
-            populationCount.textContent = fishSchool.length;
-            const avgSpeed = fishSchool.reduce((sum, fish) => 
-                sum + Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y), 0) / Math.max(1, fishSchool.length);
-            avgSpeedDisplay.textContent = avgSpeed.toFixed(2);
-
-            document.getElementById('statsOverlay').innerHTML = `
-                Fish: <span id="populationCount">${fishSchool.length}</span> | 
-                Avg Speed: <span id="avgSpeed">${avgSpeed.toFixed(2)}</span> |
-                <span style="color: #90EE90">Juvenile: ${juvenileFish}</span> | 
-                <span style="color: #4682B4">Adult: ${adultFish}</span> | 
-                <span style="color: #A0522D">Elderly: ${elderlyFish}</span>
-            `;
-
-            const sampleFish = fishSchool.slice(0, 5);
-            entityList.innerHTML = sampleFish.map(fish => {
-                const agePercentage = (fish.age / fish.lifespan * 100).toFixed(0);
-                let stateColor = fish.state === 'juvenile' ? '#90EE90' : 
-                                fish.state === 'adult' ? '#4682B4' : '#A0522D';
-                
-                let remainingLife = '';
-                if (fish.state === 'elderly') {
-                    const secondsLeft = ((fish.lifespan - fish.age) / fish.ageSpeed).toFixed(0);
-                    remainingLife = `<br>Remaining: ~${secondsLeft}s`;
-                }
-                
-                return `
-                    <div class="entity-item" style="border-left: 3px solid ${fish.color}">
-                        <strong>Fish (${fish.state})</strong><br>
-                        Speed: ${Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y).toFixed(1)}<br>
-                        Age: <span style="color: ${stateColor}">${agePercentage}%</span>${remainingLife}
-                    </div>
-                `;
-            }).join('');
-        }
+        
 
         function gameLoop(timestamp) {
             if (!lastTime) lastTime = timestamp;
@@ -2210,7 +2170,7 @@
             if (dt > 0) updateSchool(dt);
 
             drawScene();
-            updateUI();
+        
 
             if (isRunning) requestAnimationFrame(gameLoop);
         }
@@ -2297,7 +2257,7 @@
                 isRunning = gameState.isRunning;
                 
                 sortFishByDepth();
-                updateUI();
+             
                 drawScene();
                 
                 if (isRunning) {
