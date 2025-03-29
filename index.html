@@ -494,6 +494,7 @@
                 this.separationWeight = 1.8;
                 this.cohesionWeight = 1.0;
                 this.alignmentWeight = 1.2;
+                this.speciesSeparationWeight = 2.5;
                 
                 this.maxTurnRate = 0.05;
                 this.acceleration = 0.2;
@@ -517,6 +518,24 @@
                 this.minReproductionGroup = 3;
                 this.reproductionChance = 0.003;
                 this.reproductionCooldown = 4000;
+                
+                if (template && template.model !== undefined) {
+                    this.model = template.model;
+                } else {
+                    this.model = Math.floor(Math.random() * FISH_MODELS.length);
+                }
+                
+                this.secondaryColor = template ? 
+                    template.secondaryColor || chroma.mix(this.color, currentTheme.tertiary, 0.7).hex() : 
+                    chroma.mix(this.color, currentTheme.tertiary, 0.7).hex();
+                    
+                this.pattern = template ? 
+                    template.pattern || Math.floor(Math.random() * 5) : 
+                    Math.floor(Math.random() * 5);
+                    
+                this.patternColor = template ?
+                    template.patternColor || chroma.mix(currentTheme.secondary, currentTheme.tertiary, Math.random()).hex() :
+                    chroma.mix(currentTheme.secondary, currentTheme.tertiary, Math.random()).hex();
             }
 
             canReproduce() {
@@ -531,50 +550,51 @@
 
             checkReproduction(fish) {
                 if (this.canReproduce()) {
-                const nearbyFish = fish.filter(other => {
-                    if (other === this) return false;
-                    if (other.state !== 'adult') return false;
-                    if (other.age < other.maturityAge) return false;
-                    const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
-                    const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
-                    return Math.sqrt(dx * dx + dy * dy) < this.reproductionRange;
-                });
+                    const nearbyFish = fish.filter(other => {
+                        if (other === this) return false;
+                        if (other.state !== 'adult') return false;
+                        if (other.age < other.maturityAge) return false;
+                        if (other.model !== this.model) return false;
+                        const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
+                        const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
+                        return Math.sqrt(dx * dx + dy * dy) < this.reproductionRange;
+                    });
 
-                if (nearbyFish.length >= this.minReproductionGroup) {
-                    const newFish = new Fish(this.x, this.y, this);
-                    
-                    const sizeVariation = 0.9 + Math.random() * 0.2;
-                    const minBaseSize = 8;  
-                    newFish.baseSize = Math.max(minBaseSize, this.baseSize * sizeVariation);
-                    
-                    newFish.size = newFish.baseSize * 0.4;
-                    newFish.velocity = { ...this.velocity };
-                    newFish.vx = this.vx;
-                    newFish.vy = this.vy;
-                    newFish.state = 'juvenile';
-                    newFish.age = 0;
-                    
-                    const variation = Math.random() * 0.2 - 0.1;
-                    newFish.lifespan = this.lifespan * (1 + variation);
-                    newFish.maturityAge = newFish.lifespan * 0.15;
-                    newFish.oldAge = newFish.lifespan * 0.75;
-                    
-                    fishSchool.push(newFish);
-                    this.lastReproductionTime = Date.now();
-                    this.energy *= 0.8;
-                    
-                    if (Math.random() < 0.4 && fishSchool.length < MAX_FISH - 1) {
-                        const twinFish = new Fish(
-                            this.x + (Math.random() - 0.5) * 20,
-                            this.y + (Math.random() - 0.5) * 20,
-                            newFish
-                        );
-                        twinFish.age = 0;
-                        fishSchool.push(twinFish);
+                    if (nearbyFish.length >= this.minReproductionGroup) {
+                        const newFish = new Fish(this.x, this.y, this);
+                        
+                        const sizeVariation = 0.9 + Math.random() * 0.2;
+                        const minBaseSize = 8;  
+                        newFish.baseSize = Math.max(minBaseSize, this.baseSize * sizeVariation);
+                        
+                        newFish.size = newFish.baseSize * 0.4;
+                        newFish.velocity = { ...this.velocity };
+                        newFish.vx = this.vx;
+                        newFish.vy = this.vy;
+                        newFish.state = 'juvenile';
+                        newFish.age = 0;
+                        
+                        const variation = Math.random() * 0.2 - 0.1;
+                        newFish.lifespan = this.lifespan * (1 + variation);
+                        newFish.maturityAge = newFish.lifespan * 0.15;
+                        newFish.oldAge = newFish.lifespan * 0.75;
+                        
+                        fishSchool.push(newFish);
+                        this.lastReproductionTime = Date.now();
+                        this.energy *= 0.8;
+                        
+                        if (Math.random() < 0.4 && fishSchool.length < MAX_FISH - 1) {
+                            const twinFish = new Fish(
+                                this.x + (Math.random() - 0.5) * 20,
+                                this.y + (Math.random() - 0.5) * 20,
+                                newFish
+                            );
+                            twinFish.age = 0;
+                            fishSchool.push(twinFish);
+                        }
                     }
                 }
             }
-        }
 
             updateLifecycle(dt) {
                 this.age += dt * this.ageSpeed;
@@ -638,7 +658,9 @@
                 const neighbors = {
                     near: [],
                     far: [],
-                    visible: []
+                    visible: [],
+                    sameSpecies: [],
+                    differentSpecies: []
                 };
                 
                 fish.forEach(other => {
@@ -647,13 +669,22 @@
                     const dx = this.getWrappedDiff(other.x - this.x, canvas.width);
                     const dy = this.getWrappedDiff(other.y - this.y, canvas.height);
                     const distance = Math.sqrt(dx * dx + dy * dy);
+                    const isSameSpecies = other.model === this.model;
+                    
+                    const neighborInfo = { fish: other, dx, dy, distance, isSameSpecies };
                     
                     if (distance < this.nearRadius) {
-                        neighbors.near.push({ fish: other, dx, dy, distance });
+                        neighbors.near.push(neighborInfo);
                     } else if (distance < this.farRadius) {
-                        neighbors.far.push({ fish: other, dx, dy, distance });
+                        neighbors.far.push(neighborInfo);
                     } else if (distance < this.visualRange) {
-                        neighbors.visible.push({ fish: other, dx, dy, distance });
+                        neighbors.visible.push(neighborInfo);
+                    }
+                    
+                    if (isSameSpecies && distance < this.visualRange * 1.2) {
+                        neighbors.sameSpecies.push(neighborInfo);
+                    } else if (!isSameSpecies && distance < this.visualRange) {
+                        neighbors.differentSpecies.push(neighborInfo);
                     }
                 });
                 
@@ -662,43 +693,73 @@
 
             calculateSeparation(neighbors) {
                 let separation = { x: 0, y: 0 };
+                let diffSpeciesSeparation = { x: 0, y: 0 };
                 
-                neighbors.near.forEach(({ dx, dy, distance }) => {
+                neighbors.near.forEach(({ dx, dy, distance, isSameSpecies }) => {
                     const weight = (this.nearRadius - distance) / this.nearRadius;
                     separation.x -= dx * weight;
                     separation.y -= dy * weight;
                 });
                 
-                return this.normalize(separation);
+                neighbors.differentSpecies.forEach(({ dx, dy, distance }) => {
+                    const weight = Math.min(2.5, (this.visualRange - distance) / (this.visualRange * 0.5));
+                    diffSpeciesSeparation.x -= dx * weight * 1.8;
+                    diffSpeciesSeparation.y -= dy * weight * 1.8;
+                });
+                
+                const normalizedSeparation = this.normalize(separation);
+                const normalizedDiffSpeciesSeparation = this.normalize(diffSpeciesSeparation);
+                
+                return {
+                    x: normalizedSeparation.x * 0.7 + normalizedDiffSpeciesSeparation.x * 0.3,
+                    y: normalizedSeparation.y * 0.7 + normalizedDiffSpeciesSeparation.y * 0.3
+                };
             }
 
             calculateCohesion(neighbors) {
                 let centerOfMass = { x: 0, y: 0 };
-                const allNeighbors = [...neighbors.far, ...neighbors.visible];
                 
-                if (allNeighbors.length === 0) return { x: 0, y: 0 };
-                
-                allNeighbors.forEach(({ fish }) => {
-                    centerOfMass.x += this.getWrappedDiff(fish.x - this.x, canvas.width);
-                    centerOfMass.y += this.getWrappedDiff(fish.y - this.y, canvas.height);
-                });
-                
-                centerOfMass.x /= allNeighbors.length;
-                centerOfMass.y /= allNeighbors.length;
+                if (neighbors.sameSpecies.length === 0) {
+                    const allNeighbors = [...neighbors.far, ...neighbors.visible];
+                    if (allNeighbors.length === 0) return { x: 0, y: 0 };
+                    
+                    allNeighbors.forEach(({ fish }) => {
+                        centerOfMass.x += this.getWrappedDiff(fish.x - this.x, canvas.width);
+                        centerOfMass.y += this.getWrappedDiff(fish.y - this.y, canvas.height);
+                    });
+                    
+                    centerOfMass.x /= allNeighbors.length;
+                    centerOfMass.y /= allNeighbors.length;
+                } else {
+                    neighbors.sameSpecies.forEach(({ fish }) => {
+                        centerOfMass.x += this.getWrappedDiff(fish.x - this.x, canvas.width);
+                        centerOfMass.y += this.getWrappedDiff(fish.y - this.y, canvas.height);
+                    });
+                    
+                    centerOfMass.x /= neighbors.sameSpecies.length;
+                    centerOfMass.y /= neighbors.sameSpecies.length;
+                }
                 
                 return this.normalize(centerOfMass);
             }
 
             calculateAlignment(neighbors) {
                 let averageDirection = { x: 0, y: 0 };
-                const allNeighbors = [...neighbors.far, ...neighbors.visible];
                 
-                if (allNeighbors.length === 0) return { x: 0, y: 0 };
-                
-                allNeighbors.forEach(({ fish }) => {
-                    averageDirection.x += fish.velocity.x;
-                    averageDirection.y += fish.velocity.y;
-                });
+                if (neighbors.sameSpecies.length === 0) {
+                    const allNeighbors = [...neighbors.far, ...neighbors.visible];
+                    if (allNeighbors.length === 0) return { x: 0, y: 0 };
+                    
+                    allNeighbors.forEach(({ fish }) => {
+                        averageDirection.x += fish.velocity.x;
+                        averageDirection.y += fish.velocity.y;
+                    });
+                } else {
+                    neighbors.sameSpecies.forEach(({ fish }) => {
+                        averageDirection.x += fish.velocity.x;
+                        averageDirection.y += fish.velocity.y;
+                    });
+                }
                 
                 return this.normalize(averageDirection);
             }
@@ -802,151 +863,1195 @@
             }
 
             draw() {
-                offscreenCtx.save();
-                offscreenCtx.translate(this.x, this.y);
-                offscreenCtx.rotate(this.angle);
-
-                const baseColor = chroma(this.color);
-                const energyAdjustedColor = this.state === 'juvenile' 
-                    ? baseColor.alpha(0.75).brighten(0.5).hex()
-                    : this.state === 'adult'
-                    ? baseColor.alpha(0.6 + this.energy * 0.4).hex()
-                    : baseColor.alpha(0.5 + this.energy * 0.5).darken((this.age - this.oldAge) / (this.lifespan - this.oldAge) * 2).hex();
-
-                const gradient = offscreenCtx.createLinearGradient(-this.size * 0.7, 0, this.size * 1.2, 0);
-                gradient.addColorStop(0, baseColor.darken(1).hex());
-                gradient.addColorStop(0.3, energyAdjustedColor);
-                gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
-                gradient.addColorStop(1, baseColor.darken(0.5).hex());
-
-                offscreenCtx.fillStyle = gradient;
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(this.size * 1.1, 0);
-                offscreenCtx.bezierCurveTo(
-                    this.size * 0.9, -this.size * 0.25,
-                    this.size * 0.6, -this.size * 0.5,
-                    this.size * 0.2, -this.size * 0.55
-                );
-                offscreenCtx.bezierCurveTo(
-                    -this.size * 0.3, -this.size * 0.6,
-                    -this.size * 0.7, -this.size * 0.45,
-                    -this.size * 1.1, -this.size * 0.25
-                );
-                offscreenCtx.bezierCurveTo(
-                    -this.size * 1.3, -this.size * 0.15,
-                    -this.size * 1.4, 0,
-                    -this.size * 1.3, this.size * 0.15
-                );
-                offscreenCtx.bezierCurveTo(
-                    -this.size * 1.1, this.size * 0.25,
-                    -this.size * 0.7, this.size * 0.45,
-                    -this.size * 0.3, this.size * 0.6
-                );
-                offscreenCtx.bezierCurveTo(
-                    this.size * 0.6, this.size * 0.5,
-                    this.size * 0.9, this.size * 0.25,
-                    this.size * 1.1, 0
-                );
-                offscreenCtx.fill();
-
-                offscreenCtx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
-                offscreenCtx.lineWidth = this.size * 0.05;
-                offscreenCtx.stroke();
-
-                const tailWagging = Math.sin(this.stateTimer * this.tailSpeed * (Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y) / this.maxSpeed) * 12) * 0.35;
-                offscreenCtx.fillStyle = gradient;
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(-this.size * 1.1, -this.size * 0.25);
-                offscreenCtx.bezierCurveTo(
-                    -this.size * 1.5, -this.size * 0.5 + tailWagging * this.size * 0.4,
-                    -this.size * 1.7, -this.size * 0.2 + tailWagging * this.size * 0.6,
-                    -this.size * 1.6, 0 + tailWagging * this.size * 0.3
-                );
-                offscreenCtx.bezierCurveTo(
-                    -this.size * 1.7, this.size * 0.2 - tailWagging * this.size * 0.6,
-                    -this.size * 1.5, this.size * 0.5 - tailWagging * this.size * 0.4,
-                    -this.size * 1.1, this.size * 0.25
-                );
-                offscreenCtx.fill();
-
-                offscreenCtx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(this.size * 0.4, -this.size * 0.55);
-                offscreenCtx.quadraticCurveTo(
-                    this.size * 0.2, -this.size * 0.9,
-                    -this.size * 0.1, -this.size * 0.55
-                );
-                offscreenCtx.fill();
-
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(this.size * 0.3, this.size * 0.55);
-                offscreenCtx.quadraticCurveTo(
-                    this.size * 0.1, this.size * 0.85,
-                    -this.size * 0.1, this.size * 0.55
-                );
-                offscreenCtx.fill();
-
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(-this.size * 0.2, this.size * 0.45);
-                offscreenCtx.quadraticCurveTo(
-                    -this.size * 0.4, this.size * 0.75,
-                    -this.size * 0.6, this.size * 0.45
-                );
-                offscreenCtx.fill();
-
-                offscreenCtx.fillStyle = "#ffffff";
-                offscreenCtx.beginPath();
-                offscreenCtx.arc(this.size * 0.85, -this.size * 0.15, this.size * 0.12, 0, Math.PI * 2);
-                offscreenCtx.fill();
-
-                offscreenCtx.fillStyle = "#000000";
-                offscreenCtx.beginPath();
-                offscreenCtx.arc(this.size * 0.88, -this.size * 0.15, this.size * 0.06, 0, Math.PI * 2);
-                offscreenCtx.fill();
-
-                offscreenCtx.fillStyle = "#ffffff";
-                offscreenCtx.beginPath();
-                offscreenCtx.arc(this.size * 0.83, -this.size * 0.18, this.size * 0.03, 0, Math.PI * 2);
-                offscreenCtx.fill();
-
-                offscreenCtx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
-                offscreenCtx.lineWidth = this.size * 0.03;
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(this.size * 0.8, this.size * 0.1);
-                offscreenCtx.quadraticCurveTo(
-                    this.size * 0.4, this.size * 0.3,
-                    0, this.size * 0.2
-                );
-                offscreenCtx.stroke();
-
-                offscreenCtx.beginPath();
-                offscreenCtx.moveTo(this.size * 0.6, -this.size * 0.1);
-                offscreenCtx.quadraticCurveTo(
-                    this.size * 0.2, -this.size * 0.25,
-                    -this.size * 0.2, -this.size * 0.15
-                );
-                offscreenCtx.stroke();
-
-                const speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
-                if (speed > this.maxSpeed * 0.5) {
-                    offscreenCtx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-                    offscreenCtx.lineWidth = this.size * 0.02;
-                    for (let i = 0; i < 4; i++) {
-                        offscreenCtx.beginPath();
-                        offscreenCtx.arc(
-                            -this.size * (0.3 + i * 0.2),
-                            (Math.random() - 0.5) * this.size * 0.4,
-                            this.size * (0.03 + Math.random() * 0.04),
-                            0, Math.PI * 2
-                        );
-                        offscreenCtx.stroke();
-                    }
-                }
-
-                offscreenCtx.restore();
+                FISH_MODELS[this.model](this, offscreenCtx);
             }
         }
 
+        const FISH_MODELS = [
+            drawClassicFish,
+            drawStripedFish,
+            drawSpottedFish,
+            drawDeepSeaFish,
+            drawGoldenFish,
+            drawTropicalFish,
+            drawSlimFish,
+            drawWideFish
+        ];
+
+        function drawClassicFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.25,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.55
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.6,
+                -fish.size * 0.7, -fish.size * 0.45,
+                -fish.size * 1.1, -fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.15,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.25,
+                -fish.size * 0.7, fish.size * 0.45,
+                -fish.size * 0.3, fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.25,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.25);
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.5 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.7, -fish.size * 0.2 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.6, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, fish.size * 0.2 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, fish.size * 0.5 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.25
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.9,
+                -fish.size * 0.1, -fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 0.85,
+                -fish.size * 0.1, fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.45);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.75,
+                -fish.size * 0.6, fish.size * 0.45
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.15, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.15, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.18, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
+            ctx.lineWidth = fish.size * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.8, fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, fish.size * 0.3,
+                0, fish.size * 0.2
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, -fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.25,
+                -fish.size * 0.2, -fish.size * 0.15
+            );
+            ctx.stroke();
+
+            const speed = Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y);
+            if (speed > fish.maxSpeed * 0.5) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+                ctx.lineWidth = fish.size * 0.02;
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath();
+                    ctx.arc(
+                        -fish.size * (0.3 + i * 0.2),
+                        (Math.random() - 0.5) * fish.size * 0.4,
+                        fish.size * (0.03 + Math.random() * 0.04),
+                        0, Math.PI * 2
+                    );
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawStripedFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const stripeColor = chroma(fish.secondaryColor).darken(0.5);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.25,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.55
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.6,
+                -fish.size * 0.7, -fish.size * 0.45,
+                -fish.size * 1.1, -fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.15,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.25,
+                -fish.size * 0.7, fish.size * 0.45,
+                -fish.size * 0.3, fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.25,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.25);
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.5 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.7, -fish.size * 0.2 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.6, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, fish.size * 0.2 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, fish.size * 0.5 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.25
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.9,
+                -fish.size * 0.1, -fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 0.85,
+                -fish.size * 0.1, fish.size * 0.55
+            );
+            ctx.fill();
+
+            const stripeCount = 4;
+            const stripeWidth = fish.size * 0.1;
+            
+            ctx.fillStyle = stripeColor.hex();
+            for (let i = 0; i < stripeCount; i++) {
+                const x = fish.size * (0.8 - i * 0.4);
+                if (x > -fish.size * 0.8) {
+                    ctx.beginPath();
+                    ctx.rect(x - stripeWidth/2, -fish.size * 0.55, stripeWidth, fish.size * 1.1);
+                    ctx.fill();
+                }
+            }
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.15, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.15, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.18, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
+            ctx.lineWidth = fish.size * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.8, fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, fish.size * 0.3,
+                0, fish.size * 0.2
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, -fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.25,
+                -fish.size * 0.2, -fish.size * 0.15
+            );
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawSpottedFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const spotColor = chroma(fish.patternColor).darken(0.5);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.25,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.55
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.6,
+                -fish.size * 0.7, -fish.size * 0.45,
+                -fish.size * 1.1, -fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.15,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.25,
+                -fish.size * 0.7, fish.size * 0.45,
+                -fish.size * 0.3, fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.25,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.25);
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.5 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.7, -fish.size * 0.2 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.6, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, fish.size * 0.2 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, fish.size * 0.5 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.25
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.9,
+                -fish.size * 0.1, -fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 0.85,
+                -fish.size * 0.1, fish.size * 0.55
+            );
+            ctx.fill();
+
+            const spotPositions = [
+                {x: 0.5, y: -0.2, size: 0.12},
+                {x: 0.2, y: 0.2, size: 0.14},
+                {x: -0.2, y: -0.25, size: 0.13},
+                {x: -0.6, y: 0.15, size: 0.11},
+                {x: -0.3, y: 0.3, size: 0.1}
+            ];
+            
+            ctx.fillStyle = spotColor.hex();
+            spotPositions.forEach(spot => {
+                ctx.beginPath();
+                ctx.arc(fish.size * spot.x, fish.size * spot.y, fish.size * spot.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.15, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.15, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.18, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
+            ctx.lineWidth = fish.size * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.8, fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, fish.size * 0.3,
+                0, fish.size * 0.2
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, -fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.25,
+                -fish.size * 0.2, -fish.size * 0.15
+            );
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawDeepSeaFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color).darken(1.5);
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.2).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.3,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.65,
+                -fish.size * 0.7, -fish.size * 0.5,
+                -fish.size * 1.1, -fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.2,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.2
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.3,
+                -fish.size * 0.7, fish.size * 0.5,
+                -fish.size * 0.3, fish.size * 0.65
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.3,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.3);
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.6 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.7, -fish.size * 0.3 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.6, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, fish.size * 0.3 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, fish.size * 0.6 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.3
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.6);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 1.1,
+                -fish.size * 0.1, -fish.size * 0.6
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.6);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 1.1,
+                -fish.size * 0.1, fish.size * 0.6
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.5);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.9,
+                -fish.size * 0.6, fish.size * 0.5
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.2, fish.size * 0.15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.2, fish.size * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.24, fish.size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(2).alpha(0.5).hex();
+            ctx.lineWidth = fish.size * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.8, fish.size * 0.1);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, fish.size * 0.3,
+                0, fish.size * 0.2
+            );
+            ctx.stroke();
+
+            for (let i = 0; i < 5; i++) {
+                const y = -fish.size * 0.4 + i * fish.size * 0.2;
+                if (Math.abs(y) < fish.size * 0.5) {
+                    ctx.beginPath();
+                    ctx.moveTo(-fish.size * 0.2, y);
+                    ctx.lineTo(-fish.size * 0.5, y);
+                    ctx.strokeStyle = baseColor.brighten(1).alpha(0.5).hex();
+                    ctx.lineWidth = fish.size * 0.02;
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawGoldenFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const secondaryColor = chroma(fish.color);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(0.5).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, secondaryColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.25,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.55
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.6,
+                -fish.size * 0.7, -fish.size * 0.45,
+                -fish.size * 1.1, -fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.15,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.25,
+                -fish.size * 0.7, fish.size * 0.45,
+                -fish.size * 0.3, fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.25,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = secondaryColor.darken(0.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            
+            ctx.fillStyle = secondaryColor.hex();
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.25);
+            ctx.bezierCurveTo(
+                -fish.size * 1.8, -fish.size * 0.6 + tailWagging * fish.size * 0.4,
+                -fish.size * 2.0, -fish.size * 0.3 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.8, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 2.0, fish.size * 0.3 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.8, fish.size * 0.6 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.25
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(0.3).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 0.9,
+                -fish.size * 0.1, -fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 0.9,
+                -fish.size * 0.1, fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.45);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.75,
+                -fish.size * 0.6, fish.size * 0.45
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.15, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.15, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.18, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            const scaleSize = fish.size * 0.12;
+            const scales = [
+                {x: 0.5, y: 0.1}, {x: 0.5, y: -0.1},
+                {x: 0.2, y: 0.2}, {x: 0.2, y: -0.2},
+                {x: -0.1, y: 0.3}, {x: -0.1, y: -0.3},
+                {x: -0.4, y: 0.2}, {x: -0.4, y: -0.2}
+            ];
+            
+            ctx.lineWidth = fish.size * 0.02;
+            ctx.strokeStyle = secondaryColor.darken(0.3).hex();
+            
+            scales.forEach(scale => {
+                ctx.beginPath();
+                ctx.arc(
+                    fish.size * scale.x,
+                    fish.size * scale.y,
+                    scaleSize,
+                    0, Math.PI
+                );
+                ctx.stroke();
+            });
+
+            ctx.restore();
+        }
+
+        function drawTropicalFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color).brighten(1);
+            const secondaryColor = chroma(fish.secondaryColor);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, secondaryColor.hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.1, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.25,
+                fish.size * 0.6, -fish.size * 0.5,
+                fish.size * 0.2, -fish.size * 0.55
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.6,
+                -fish.size * 0.7, -fish.size * 0.45,
+                -fish.size * 1.1, -fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, -fish.size * 0.15,
+                -fish.size * 1.4, 0,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.1, fish.size * 0.25,
+                -fish.size * 0.7, fish.size * 0.45,
+                -fish.size * 0.3, fish.size * 0.6
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.5,
+                fish.size * 0.9, fish.size * 0.25,
+                fish.size * 1.1, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = secondaryColor.hex();
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.1, -fish.size * 0.25);
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.5 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.7, -fish.size * 0.2 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.6, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, fish.size * 0.2 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, fish.size * 0.5 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.1, fish.size * 0.25
+            );
+            ctx.fill();
+
+            ctx.fillStyle = secondaryColor.alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 1.0,
+                -fish.size * 0.1, -fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.3, fish.size * 0.55);
+            ctx.quadraticCurveTo(
+                fish.size * 0.1, fish.size * 1.0,
+                -fish.size * 0.1, fish.size * 0.55
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.45);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.75,
+                -fish.size * 0.6, fish.size * 0.45
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.85, -fish.size * 0.15, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.88, -fish.size * 0.15, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.83, -fish.size * 0.18, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            const patternColor = fish.patternColor;
+            
+            ctx.fillStyle = patternColor;
+            ctx.beginPath();
+            ctx.arc(0, 0, fish.size * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = patternColor;
+            ctx.lineWidth = fish.size * 0.04;
+            ctx.lineCap = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, -fish.size * 0.3);
+            ctx.lineTo(fish.size * 0.3, -fish.size * 0.15);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, fish.size * 0.3);
+            ctx.lineTo(fish.size * 0.3, fish.size * 0.15);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.4, -fish.size * 0.3);
+            ctx.lineTo(-fish.size * 0.7, -fish.size * 0.15);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.4, fish.size * 0.3);
+            ctx.lineTo(-fish.size * 0.7, fish.size * 0.15);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawSlimFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const secondaryColor = chroma(fish.secondaryColor);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.3, 0);
+            ctx.bezierCurveTo(
+                fish.size * 1.1, -fish.size * 0.15,
+                fish.size * 0.8, -fish.size * 0.3,
+                fish.size * 0.4, -fish.size * 0.35
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.4,
+                -fish.size * 0.9, -fish.size * 0.3,
+                -fish.size * 1.3, -fish.size * 0.15
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.5, -fish.size * 0.1,
+                -fish.size * 1.6, 0,
+                -fish.size * 1.5, fish.size * 0.1
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.3, fish.size * 0.15,
+                -fish.size * 0.9, fish.size * 0.3,
+                -fish.size * 0.3, fish.size * 0.4
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.8, fish.size * 0.3,
+                fish.size * 1.1, fish.size * 0.15,
+                fish.size * 1.3, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.03;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.3, -fish.size * 0.15);
+            ctx.bezierCurveTo(
+                -fish.size * 1.7, -fish.size * 0.35 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.9, -fish.size * 0.15 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.8, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.9, fish.size * 0.15 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.7, fish.size * 0.35 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.3, fish.size * 0.15
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, -fish.size * 0.35);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, -fish.size * 0.6,
+                fish.size * 0.1, -fish.size * 0.35
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.6, fish.size * 0.35);
+            ctx.quadraticCurveTo(
+                fish.size * 0.4, fish.size * 0.6,
+                fish.size * 0.1, fish.size * 0.35
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.3);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.5,
+                -fish.size * 0.6, fish.size * 0.3
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 1.0, -fish.size * 0.1, fish.size * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 1.03, -fish.size * 0.1, fish.size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.97, -fish.size * 0.12, fish.size * 0.02, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = secondaryColor.hex();
+            ctx.lineWidth = fish.size * 0.02;
+            
+            for (let i = 0; i < 6; i++) {
+                const x = fish.size * (0.7 - i * 0.35);
+                if (x > -fish.size * 1.0) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, -fish.size * 0.35);
+                    ctx.lineTo(x, fish.size * 0.35);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawWideFish(fish, ctx) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const baseColor = chroma(fish.color);
+            const secondaryColor = chroma(fish.secondaryColor);
+            
+            const energyAdjustedColor = fish.state === 'juvenile' 
+                ? baseColor.alpha(0.75).brighten(0.5).hex()
+                : fish.state === 'adult'
+                ? baseColor.alpha(0.6 + fish.energy * 0.4).hex()
+                : baseColor.alpha(0.5 + fish.energy * 0.5).darken((fish.age - fish.oldAge) / (fish.lifespan - fish.oldAge) * 2).hex();
+
+            const gradient = ctx.createLinearGradient(-fish.size * 0.7, 0, fish.size * 1.2, 0);
+            gradient.addColorStop(0, baseColor.darken(1).hex());
+            gradient.addColorStop(0.3, energyAdjustedColor);
+            gradient.addColorStop(0.7, baseColor.brighten(0.8).hex());
+            gradient.addColorStop(1, baseColor.darken(0.5).hex());
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 1.0, 0);
+            ctx.bezierCurveTo(
+                fish.size * 0.9, -fish.size * 0.45,
+                fish.size * 0.6, -fish.size * 0.7,
+                fish.size * 0.2, -fish.size * 0.75
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 0.3, -fish.size * 0.8,
+                -fish.size * 0.7, -fish.size * 0.65,
+                -fish.size * 1.0, -fish.size * 0.45
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.2, -fish.size * 0.25,
+                -fish.size * 1.3, 0,
+                -fish.size * 1.2, fish.size * 0.25
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.0, fish.size * 0.45,
+                -fish.size * 0.7, fish.size * 0.65,
+                -fish.size * 0.3, fish.size * 0.8
+            );
+            ctx.bezierCurveTo(
+                fish.size * 0.6, fish.size * 0.7,
+                fish.size * 0.9, fish.size * 0.45,
+                fish.size * 1.0, 0
+            );
+            ctx.fill();
+
+            ctx.strokeStyle = baseColor.darken(1.5).alpha(0.3).hex();
+            ctx.lineWidth = fish.size * 0.05;
+            ctx.stroke();
+
+            const tailWagging = Math.sin(fish.stateTimer * fish.tailSpeed * (Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y) / fish.maxSpeed) * 12) * 0.35;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 1.0, -fish.size * 0.45);
+            ctx.bezierCurveTo(
+                -fish.size * 1.4, -fish.size * 0.7 + tailWagging * fish.size * 0.4,
+                -fish.size * 1.6, -fish.size * 0.4 + tailWagging * fish.size * 0.6,
+                -fish.size * 1.5, 0 + tailWagging * fish.size * 0.3
+            );
+            ctx.bezierCurveTo(
+                -fish.size * 1.6, fish.size * 0.4 - tailWagging * fish.size * 0.6,
+                -fish.size * 1.4, fish.size * 0.7 - tailWagging * fish.size * 0.4,
+                -fish.size * 1.0, fish.size * 0.45
+            );
+            ctx.fill();
+
+            ctx.fillStyle = baseColor.brighten(1).alpha(0.8).hex();
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, -fish.size * 0.75);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, -fish.size * 1.1,
+                -fish.size * 0.1, -fish.size * 0.75
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fish.size * 0.4, fish.size * 0.75);
+            ctx.quadraticCurveTo(
+                fish.size * 0.2, fish.size * 1.1,
+                -fish.size * 0.1, fish.size * 0.75
+            );
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-fish.size * 0.2, fish.size * 0.65);
+            ctx.quadraticCurveTo(
+                -fish.size * 0.4, fish.size * 0.95,
+                -fish.size * 0.6, fish.size * 0.65
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.75, -fish.size * 0.25, fish.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.78, -fish.size * 0.25, fish.size * 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(fish.size * 0.72, -fish.size * 0.27, fish.size * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = secondaryColor.hex();
+            
+            const horizontalBands = 5;
+            const bandHeight = fish.size * 0.3;
+            
+            for (let i = 0; i < horizontalBands; i++) {
+                const y = -fish.size * 0.6 + i * bandHeight;
+                
+                ctx.beginPath();
+                ctx.moveTo(fish.size * 0.8, y);
+                ctx.bezierCurveTo(
+                    fish.size * 0.4, y - fish.size * 0.1,
+                    0, y - fish.size * 0.05,
+                    -fish.size * 0.4, y
+                );
+                ctx.bezierCurveTo(
+                    0, y + fish.size * 0.05,
+                    fish.size * 0.4, y + fish.size * 0.1,
+                    fish.size * 0.8, y
+                );
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function createFishGroup(x, y) {
+            const now = Date.now();
+            if (now - lastSpawnTime < 100 || fishSchool.length >= MAX_FISH) return;
+            lastSpawnTime = now;
+
+            const groupSize = Math.floor(Math.random() * 3) + 4;
+            const spread = 40;
+            const searchRadius = 150;
+            
+            const nearbyFish = fishSchool.filter(fish => {
+                const dx = Math.min(Math.abs(fish.x - x), canvas.width - Math.abs(fish.x - x));
+                const dy = Math.min(Math.abs(fish.y - y), canvas.height - Math.abs(fish.y - y));
+                return Math.sqrt(dx * dx + dy * dy) < searchRadius;
+            }).slice(0, 3);
+
+            let groupModel;
+            
+            if (nearbyFish.length > 0) {
+                const modelCounts = {};
+                nearbyFish.forEach(fish => {
+                    modelCounts[fish.model] = (modelCounts[fish.model] || 0) + 1;
+                });
+                
+                let maxCount = 0;
+                for (const model in modelCounts) {
+                    if (modelCounts[model] > maxCount) {
+                        maxCount = modelCounts[model];
+                        groupModel = parseInt(model);
+                    }
+                }
+            } else {
+                groupModel = Math.floor(Math.random() * FISH_MODELS.length);
+            }
+
+            for (let i = 0; i < groupSize; i++) {
+                const angle = (Math.PI * 2 * i) / groupSize + Math.random() * 0.5;
+                const distance = Math.random() * spread;
+                const newX = x + Math.cos(angle) * distance;
+                const newY = y + Math.sin(angle) * distance;
+
+                if (newX < 0 || newX > canvas.width || newY < 0 || newY > canvas.height) continue;
+
+                const template = nearbyFish.length > 0 ? 
+                    nearbyFish.find(fish => fish.model === groupModel) || nearbyFish[0] : 
+                    { model: groupModel };
+                    
+                const newFish = new Fish(newX, newY, template);
+                
+                if (Math.random() < 0.3) {
+                    newFish.age = newFish.maturityAge * (0.8 + Math.random() * 0.4);
+                    newFish.state = 'adult';
+                    newFish.size = newFish.baseSize;
+                }
+
+                fishSchool.push(newFish);
+            }
+        }
+
+        function showTooltip(x, y, fish) {
+            const speed = Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y);
+            const agePercentage = (fish.age / fish.lifespan * 100).toFixed(0);
+            const timeLeft = fish.state === 'elderly' ? 
+                `<br>Time left: ~${((fish.lifespan - fish.age) / fish.ageSpeed).toFixed(0)}s` : '';
+            const reproStatus = fish.state === 'adult' ? 
+                `<br>Can reproduce: ${Date.now() - fish.lastReproductionTime >= fish.reproductionCooldown ? 'Yes' : 'No'}` : '';
+            const modelName = ['Classic', 'Angler', 'Parrot', 'Lion', 'Clown', 'Puffer', 'Butterfly', 'Discus'][fish.model];
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = x + 10 + 'px';
+            tooltip.style.top = y + 10 + 'px';
+            tooltip.innerHTML = `
+                <strong>${modelName} Fish (${fish.state})</strong><br>
+                Speed: ${speed.toFixed(1)} / ${fish.maxSpeed.toFixed(1)}<br>
+                Energy: ${(fish.energy * 100).toFixed(0)}%<br>
+                Size: ${fish.size.toFixed(1)} / ${fish.baseSize.toFixed(1)}<br>
+                Age: ${agePercentage}% (${(fish.age / fish.ageSpeed).toFixed(0)}s)
+                ${timeLeft}${reproStatus}
+            `;
+        }
+        
         function getMousePosition(event) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -992,26 +2097,6 @@
             }
         }
         
-        function showTooltip(x, y, fish) {
-            const speed = Math.sqrt(fish.velocity.x * fish.velocity.x + fish.velocity.y * fish.velocity.y);
-            const agePercentage = (fish.age / fish.lifespan * 100).toFixed(0);
-            const timeLeft = fish.state === 'elderly' ? 
-                `<br>Time left: ~${((fish.lifespan - fish.age) / fish.ageSpeed).toFixed(0)}s` : '';
-            const reproStatus = fish.state === 'adult' ? 
-                `<br>Can reproduce: ${Date.now() - fish.lastReproductionTime >= fish.reproductionCooldown ? 'Yes' : 'No'}` : '';
-            
-            tooltip.style.display = 'block';
-            tooltip.style.left = x + 10 + 'px';
-            tooltip.style.top = y + 10 + 'px';
-            tooltip.innerHTML = `
-                <strong>Fish (${fish.state})</strong><br>
-                Speed: ${speed.toFixed(1)} / ${fish.maxSpeed.toFixed(1)}<br>
-                Energy: ${(fish.energy * 100).toFixed(0)}%<br>
-                Size: ${fish.size.toFixed(1)} / ${fish.baseSize.toFixed(1)}<br>
-                Age: ${agePercentage}% (${(fish.age / fish.ageSpeed).toFixed(0)}s)
-                ${timeLeft}${reproStatus}
-            `;
-        }
 
         function sortFishByDepth() {
             fishSchool.sort((a, b) => a.size - b.size);
